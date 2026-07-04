@@ -1,0 +1,109 @@
+# Landing Optimizer — local development stack.
+# Run from landing-optimizer-infra/docker:  docker compose up -d
+# Build contexts point at the sibling repos, so check out all repos side by side.
+name: landing-optimizer
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: lo
+      POSTGRES_PASSWORD: lo
+      POSTGRES_DB: landing_optimizer
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U lo -d landing_optimizer']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    ports:
+      - '8123:8123'
+      - '9000:9000'
+    environment:
+      CLICKHOUSE_DB: landing_optimizer
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: '1'
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - chdata:/var/lib/clickhouse
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:8123/ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - '6379:6379'
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+
+  redpanda:
+    image: redpandadata/redpanda:v24.1.7
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --overprovisioned
+      - --node-id=0
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:9092
+    ports:
+      - '9092:9092'
+
+  api:
+    build:
+      context: ../../landing-optimizer-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      NODE_ENV: development
+      PORT: '3001'
+      DATABASE_URL: postgresql://lo:lo@postgres:5432/landing_optimizer?schema=public
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_DB: landing_optimizer
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-secret-change-me-32-bytes-minimum
+      AI_SERVICE_URL: http://ai:8000
+      AI_SERVICE_TOKEN: dev-internal-token
+      DASHBOARD_ORIGIN: http://localhost:3000
+      INGEST_URL: http://localhost:3001/v1/events
+      CONFIG_URL: http://localhost:3001/v1/config
+    ports:
+      - '3001:3001'
+
+  ai:
+    build:
+      context: ../../landing-optimizer-ai
+    environment:
+      LLM_PROVIDER: stub
+      INTERNAL_TOKEN: dev-internal-token
+    ports:
+      - '8000:8000'
+
+  dashboard:
+    build:
+      context: ../../landing-optimizer-dashboard
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001/v1
+    ports:
+      - '3000:3000'
+
+volumes:
+  pgdata:
+  chdata:

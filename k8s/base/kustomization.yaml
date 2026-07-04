@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: landing-optimizer
+resources:
+  - namespace.yaml
+  - api.yaml
+  - ai.yaml
+  - dashboard.yaml
+
+# Secrets are provided per-environment (e.g. via External Secrets Operator or
+# sealed-secrets) and are intentionally NOT committed here:
+#   - api-secrets: DATABASE_URL, CLICKHOUSE_*, REDIS_URL, JWT_SECRET, CONFIG_ENCRYPTION_KEY, AI_SERVICE_TOKEN
+#   - ai-secrets:  OPENAI_API_KEY, INTERNAL_TOKEN
