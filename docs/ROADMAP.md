@@ -1,10 +1,10 @@
 # Roadmap — Landing Optimizer
 
-> Status: Living document. Last updated: 2026-07-02.
+> Status: Living document. Last updated: 2026-07-22.
 
 ## Phase 0 — Foundations (design)
 - [x] Product requirements, architecture, schema, contracts, security, deployment docs.
-- [ ] Repo scaffolds for all five services.
+- [x] Repo scaffolds for all five services.
 
 ## Phase 1 — MVP (implement first)
 Goal: end-to-end loop from install to a running approved copy experiment.
