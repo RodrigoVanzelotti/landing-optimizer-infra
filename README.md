@@ -18,6 +18,7 @@ See [docs/](docs/):
 Check out all five repos side by side, then:
 ```bash
 cd docker
+cp .env.example .env            # secrets live here
 docker compose up -d           # postgres, clickhouse, redis, redpanda, api, ai, dashboard
 # first run: apply migrations
 docker compose exec api npx prisma migrate deploy

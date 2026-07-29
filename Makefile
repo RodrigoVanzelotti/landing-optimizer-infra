@@ -4,9 +4,12 @@
 
 COMPOSE = docker compose -f docker/docker-compose.yml
 
-.PHONY: up down logs ps build migrate seed clean
+.PHONY: up down logs ps build migrate seed clean env
 
-up: ## Start the full local stack
+env: ## Create docker/.env file from .env.example if it doesn't exist yet
+	@test -f docker/.env || (cp docker/.env.example docker/.env && echo "Created docker/.env from .env.example. Please edit it to set your secrets.")
+
+up: env ## Start the full local stack
 	$(COMPOSE) up -d
 
 down: ## Stop the stack

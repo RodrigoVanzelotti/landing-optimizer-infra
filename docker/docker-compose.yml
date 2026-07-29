@@ -7,15 +7,15 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_USER: lo
-      POSTGRES_PASSWORD: lo
-      POSTGRES_DB: landing_optimizer
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER environment variable must be set}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable must be set}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB environment variable must be set}
     ports:
       - '5432:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U lo -d landing_optimizer']
+      test: ['CMD-SHELL', 'pg_isready -U lo -d ${POSTGRES_DB}']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -26,7 +26,8 @@ services:
       - '8123:8123'
       - '9000:9000'
     environment:
-      CLICKHOUSE_DB: landing_optimizer
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:?CLICKHOUSE_DB environment variable must be set}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: '1'
     ulimits:
       nofile:
@@ -35,7 +36,7 @@ services:
     volumes:
       - chdata:/var/lib/clickhouse
     healthcheck:
-      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:8123/ping']
+      test: ['CMD', 'wget', '--spider', '-q', '${CLICKHOUSE_URL}/ping']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -72,13 +73,16 @@ services:
     environment:
       NODE_ENV: development
       PORT: '3001'
-      DATABASE_URL: postgresql://lo:lo@postgres:5432/landing_optimizer?schema=public
-      CLICKHOUSE_URL: http://clickhouse:8123
-      CLICKHOUSE_DB: landing_optimizer
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: dev-secret-change-me-32-bytes-minimum
-      AI_SERVICE_URL: http://ai:8000
-      AI_SERVICE_TOKEN: dev-internal-token
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL environment variable must be set}
+      CLICKHOUSE_URL: ${CLICKHOUSE_URL:?CLICKHOUSE_URL environment variable must be set}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:?CLICKHOUSE_DB environment variable must be set}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:?CLICKHOUSE_USER environment variable must be set}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL environment variable must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET environment variable must be set} 
+      CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:-}
+      AI_SERVICE_URL: ${AI_SERVICE_URL:?AI_SERVICE_URL environment variable must be set}
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN environment variable must be set}
       DASHBOARD_ORIGIN: http://localhost:3000
       INGEST_URL: http://localhost:3001/v1/events
       CONFIG_URL: http://localhost:3001/v1/config
@@ -90,7 +94,7 @@ services:
       context: ../../landing-optimizer-ai
     environment:
       LLM_PROVIDER: stub
-      INTERNAL_TOKEN: dev-internal-token
+      INTERNAL_TOKEN: ${AI_SERVICE_TOKEN:?AI_SERVICE_TOKEN environment variable must be set}
     ports:
       - '8000:8000'
 
