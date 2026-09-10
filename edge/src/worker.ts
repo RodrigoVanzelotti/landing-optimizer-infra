@@ -16,6 +16,8 @@ export interface Env {
 }
 
 const MAX_BODY_BYTES = 32 * 1024;
+// Operator-triggered page snapshots carry a base64 screenshot (≤3 MB decoded).
+const MAX_SNAPSHOT_BODY_BYTES = 5 * 1024 * 1024;
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -23,6 +25,9 @@ export default {
 
     if (request.method === 'POST' && url.pathname === '/v1/events') {
       return handleEvents(request, env, ctx);
+    }
+    if (request.method === 'POST' && url.pathname === '/v1/snapshots') {
+      return handleSnapshot(request, env);
     }
     if (request.method === 'GET' && url.pathname.startsWith('/v1/config/')) {
       return handleConfig(request, env, ctx);
@@ -68,6 +73,33 @@ async function handleEvents(request: Request, env: Env, ctx: ExecutionContext): 
   ctx.waitUntil(forward);
 
   return new Response(null, { status: 202, headers: corsHeaders(request) });
+}
+
+/**
+ * Page snapshot upload (operator-only, low volume). Unlike events this is NOT
+ * fire-and-forget: the capture UI reports success/failure, so the upstream
+ * status is returned to the browser. The API re-validates everything.
+ */
+async function handleSnapshot(request: Request, env: Env): Promise<Response> {
+  const cl = Number(request.headers.get('content-length') ?? '0');
+  if (cl > MAX_SNAPSHOT_BODY_BYTES) {
+    return json({ error: { code: 'validation_error', message: 'body too large' } }, 400, request);
+  }
+  try {
+    const upstream = await fetch(`${env.API_ORIGIN}/v1/snapshots`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Forwarded-Origin': request.headers.get('origin') ?? '',
+      },
+      body: request.body,
+    });
+    const res = new Response(upstream.body, upstream);
+    applyCors(res, request);
+    return res;
+  } catch {
+    return json({ error: { code: 'internal_error', message: 'upstream failed' } }, 502, request);
+  }
 }
 
 async function handleConfig(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {

@@ -1,6 +1,6 @@
 # API Contracts — Landing Optimizer
 
-> Status: Living document. Last updated: 2026-07-02.
+> Status: Living document. Last updated: 2026-09-09.
 > Two API surfaces: the **public edge** (snippet-facing, unauthenticated but
 > origin/key gated) and the **control-plane API** (dashboard/operator, JWT
 > authenticated). All request/response bodies are validated with Zod (edge) or
@@ -30,6 +30,15 @@ Ingest a batch of events. Origin + `ik` (ingest key) validated.
 - Body: event envelope (EVENT_SCHEMA §1).
 - 202 → accepted (empty body).
 - 400 → malformed. 401/403 → bad key/origin. 429 → rate limited.
+- `page_map` events are split off and upserted into Postgres `page_map`
+  (one row per site + path); all other events land in ClickHouse.
+
+### `POST /v1/snapshots`
+Operator-triggered page snapshot upload from the `lo-capture.js` bundle
+(EVENT_SCHEMA §8). Same trust model as `/v1/events` (origin allowlist +
+ingest key + rate limit; no JWT).
+- Body: snapshot envelope (screenshot base64 ≤ 3 MB + element geometry).
+- 201 → stored. 400 → invalid. 403 → bad key/origin. 429 → rate limited.
 
 ---
 
@@ -65,6 +74,14 @@ Ingest a batch of events. Origin + `ik` (ingest key) validated.
 | Method | Path |
 | --- | --- |
 | POST/GET/PATCH/DELETE | `/v1/sites/:id/goals[/:goalId]` |
+
+### Page snapshots (behavior heatmap)
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/v1/sites/:id/snapshots` | list snapshot metadata (newest first) |
+| GET | `/v1/sites/:id/snapshots/:snapshotId` | metadata + element geometry (`nodes`) |
+| GET | `/v1/sites/:id/snapshots/:snapshotId/image` | image bytes (`Content-Type` from upload) |
+| DELETE | `/v1/sites/:id/snapshots/:snapshotId` | editor; audited; 204 |
 
 ### Experiments
 | Method | Path | Notes |
@@ -111,6 +128,7 @@ Internal API → AI service:
 | GET | `/v1/analytics/overview?siteId=&from=&to=` | KPIs (views, conversions, rate) |
 | GET | `/v1/analytics/funnel?siteId=` | event funnel |
 | GET | `/v1/analytics/sections?siteId=` | section performance (heat-style) |
+| GET | `/v1/analytics/heatmap?siteId=&path=&from=&to=` | per-selector clicks/hover/frustration + scroll-depth distribution for one page path (defaults: `path=/`, last 30 days) |
 | GET | `/v1/analytics/experiments/:id/results` | exposures/conversions + significance |
 
 ### Brand guardrails

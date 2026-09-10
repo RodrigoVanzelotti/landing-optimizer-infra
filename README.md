@@ -31,6 +31,28 @@ Dashboard: http://localhost:3000 · API: http://localhost:3001 · AI: http://loc
 > Windows/corporate networks: if `prisma generate` fails TLS, run Node with the
 > system trust store: `NODE_OPTIONS=--use-system-ca`.
 
+### Docker watch mode
+Requires Docker Compose 2.23 or newer. From `landing-optimizer-infra`:
+
+```bash
+make watch
+# Windows PowerShell / without make:
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.watch.yml up --build --watch
+```
+
+The API, AI service, and dashboard run their native development watchers. Source
+edits are synchronized into the containers; config files restart the owning
+service; API migration edits restart and run idempotent deploy commands;
+Dockerfiles, package locks, and requirements trigger an image rebuild. Stop with
+`Ctrl+C`; `make down` removes the containers while preserving datastore volumes.
+
+The snippet/demo has its own watch stack:
+
+```bash
+cd ../landing-optimizer-snippet
+docker compose -f docker-compose.yml -f docker-compose.watch.yml up --build --watch
+```
+
 ## Layout
 | Path | Purpose |
 | --- | --- |

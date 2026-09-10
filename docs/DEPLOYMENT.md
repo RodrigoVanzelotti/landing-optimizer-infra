@@ -1,6 +1,6 @@
 # Deployment Model — Landing Optimizer
 
-> Status: Living document. Last updated: 2026-07-02.
+> Status: Living document. Last updated: 2026-08-06.
 
 ## 1. Environments
 
@@ -17,6 +17,14 @@
   `redpandadata/redpanda`, plus the API, AI, and dashboard services.
 - Seed script creates a demo tenant + site + sample events.
 - `make up` / `make down` / `make seed` wrappers.
+
+For active development (Docker Compose 2.23+), `make watch` layers
+`docker/docker-compose.watch.yml` over the base stack. API, AI, and dashboard
+use Dockerfile `development` targets plus native framework reloaders. Compose
+syncs source edits, restarts on configuration changes, and rebuilds on
+dependency manifests or Dockerfile changes. API migration changes synchronize,
+restart, and run idempotent Postgres/ClickHouse deploy commands. The snippet repo
+has its own `docker-compose.watch.yml` for `tsup --watch` and demo-page sync.
 
 ## 3. Build & release
 
@@ -52,6 +60,15 @@ customers; `latest` is opt-in.
   invalidated on `config/publish`.
 
 ## 8. Observability & alerting
+- API and AI write one JSON object per line. Common fields are `timestamp`,
+  `level`, `service`, `logger`, and `event`; transaction-specific fields remain
+  top-level for direct querying in CloudWatch/Loki/Elastic/Datadog.
+- API: correlated `transaction_succeeded` logs for control-plane writes and a
+  global `request_failed` exception log; successful event ingestion is excluded
+  to control volume. AI: correlated analyze/score success logs, global exception
+  logs, and provider-fallback reasons. Neither service logs payloads or secrets.
+- Propagate `X-Request-ID` through the ingress/API/AI path; malformed incoming
+  IDs are replaced to prevent log injection.
 - OpenTelemetry → collector → traces/metrics.
 - Prometheus + Grafana dashboards (RED metrics, ingestion lag, error budget).
 - Sentry for API/dashboard/SDK errors (SDK errors sampled, scrubbed).

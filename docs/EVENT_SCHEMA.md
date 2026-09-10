@@ -1,6 +1,6 @@
 # Event Schema — Landing Optimizer
 
-> Status: Living document. Last updated: 2026-07-02.
+> Status: Living document. Last updated: 2026-09-09.
 > The wire contract between the snippet SDK and the ingestion edge. Designed for
 > **privacy by construction**: fields that could carry PII are absent by design.
 
@@ -61,18 +61,22 @@ before enqueueing. The edge never trusts client `sentAt` for storage ordering.
 | `form_start` | first focus in a form | never captures values |
 | `form_submit` | form submit | never captures values |
 | `section_view` | section enters viewport | via IntersectionObserver |
+| `hover` | aggregated pointer attention per element | `sel` + `dw` = accumulated ms; sampled at 1 Hz client-side, flushed as ≤20 aggregate events per interval — raw coordinates never leave the browser |
 | `dwell` | periodic/sectional dwell | ms |
 | `dropoff` | section left / exit intent | aggregate |
 | `exposure` | experiment variant applied | for stats |
 | `conversion` | `conversion()` API / goal match | value optional |
-| `page_map` | structural snapshot | sanitized map in `p` |
+| `company_context` | `identifyCompanyContext()` API | non-PII B2B metadata in `p` |
+| `page_map` | structural snapshot | sanitized map in `p`; **persisted to Postgres `page_map` (upsert per site+path), not ClickHouse** |
 
 ## 4. Validation rules (edge + consumer)
 
 - `v`, `siteId`, `ik`, `events[]` required. Batch max 50 events, body max 32 KB.
 - `n` MUST be in the enum; unknown names dropped.
 - `sel` MUST match a safe selector allowlist (no attribute selectors that could
-  leak values; no `[value=...]`).
+  leak values; no `[value=...]`). The server re-checks with its own allowlist
+  grammar and stores the sanitized selector in the ClickHouse `selector` column
+  (unsafe selectors are stored as `''`, never rejected wholesale).
 - `p` MUST pass the PII scrubber: reject/drop keys matching email/phone/cc/ssn
   patterns; truncate strings > 256 chars; max 20 keys.
 - `path` MUST NOT contain `?`/`#` (stripped client-side, re-checked at edge).
@@ -124,3 +128,34 @@ Any 5xx: SDK drops the batch silently (never blocks the page).
 ```
 The SDK verifies `sig` with the public key embedded in the loader before
 applying any change. See [API_CONTRACTS.md](./API_CONTRACTS.md).
+
+## 8. Page snapshot capture (operator-only, `POST /v1/snapshots`)
+
+Powers the dashboard **behavior heatmap**. Never runs for real visitors: the
+core SDK lazy-loads a separate `lo-capture.js` bundle only when the operator
+opens the page with `?lo_capture=1`. The module rasterizes the page client-side
+(SVG foreignObject, no dependency), strips form values / password inputs /
+`[data-lo-ignore]` elements, records the document-space bounding box of every
+page-map node, and uploads both. Storing geometry with the image means heat
+zones stay aligned with the screenshot even if the live page changes later.
+
+```jsonc
+{
+  "v": 1,
+  "siteId": "uuid",
+  "ik": "ingest_key",              // same public write key as events
+  "path": "/pricing",              // pathname only
+  "width": 1280,                   // rasterized width (CSS px, 200..4000)
+  "height": 4200,                  // full document height (CSS px, 200..40000)
+  "contentType": "image/webp",     // webp | png | jpeg (magic bytes verified)
+  "image": "…base64…",             // ≤ 3 MB decoded
+  "nodes": [                       // ≤ 150; selectors re-sanitized server-side
+    { "selector": "#cta-primary", "role": "cta", "rect": [520, 340, 220, 56] }
+  ]
+}
+```
+
+Validation: same origin-allowlist + ingest-key trust model as `/v1/events`,
+rate limited to 10 uploads/site/hour, magic-byte content-type check, retention
+of the newest 3 snapshots per (site, path) and 20 per site. Responses: `201`
+stored, `400` invalid, `403` bad key/origin, `429` rate limited.

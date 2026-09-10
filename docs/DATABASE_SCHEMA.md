@@ -1,6 +1,6 @@
 # Database Schema — Landing Optimizer
 
-> Status: Living document. Last updated: 2026-07-02.
+> Status: Living document. Last updated: 2026-09-09.
 > Two stores: **PostgreSQL** (relational app data) and **ClickHouse**
 > (append-only analytics). No PII is stored in either.
 
@@ -196,6 +196,19 @@ Status enum: `draft`, `ai_suggested`, `pending_review`, `approved`,
 | url_path | text | path only, no query/PII |
 | map | jsonb | sections, selectors, text hashes/snippets |
 | captured_at | timestamptz | |
+| | | unique(site_id, url_path) — ingestion upserts the latest map per path |
+
+#### page_snapshot (operator-captured screenshot + element geometry)
+| column | type | notes |
+| --- | --- | --- |
+| id | uuid PK | |
+| site_id | uuid FK | |
+| url_path | text | path only |
+| width / height | int | rasterized width / full document height (CSS px) |
+| content_type | text | `image/webp` \| `image/png` \| `image/jpeg` |
+| image | bytea | ≤ 3 MB; captured client-side with form values stripped |
+| nodes | jsonb | `[{selector, role, rect:[x,y,w,h]}]` document-space geometry at capture time |
+| captured_at | timestamptz | retention: newest 3 per (site, path), 20 per site |
 
 #### audit_log
 | column | type | notes |
@@ -235,6 +248,8 @@ CREATE TABLE events (
   experiment_id     UUID,            -- 0 if none
   variant_id        UUID,            -- 0 if none
   section_id        LowCardinality(String),
+  selector          String,          -- sanitized CSS selector (0002; heatmap)
+  goal              LowCardinality(String), -- conversion goal name (0002)
   scroll_depth      UInt8,           -- bucketed 0..100
   dwell_ms          UInt32,
   value             Float64,         -- generic numeric (e.g. goal value)

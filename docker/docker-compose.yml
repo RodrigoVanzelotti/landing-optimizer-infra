@@ -1,5 +1,6 @@
-# Landing Optimizer — local development stack.
-# Run from landing-optimizer-infra/docker:  docker compose up -d
+# Landing Optimizer — production-like local stack.
+# Standard: docker compose up -d
+# Watch: docker compose -f docker-compose.yml -f docker-compose.watch.yml up --build --watch
 # Build contexts point at the sibling repos, so check out all repos side by side.
 name: landing-optimizer
 

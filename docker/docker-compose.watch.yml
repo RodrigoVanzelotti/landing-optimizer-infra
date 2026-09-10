@@ -1,0 +1,98 @@
+# Development override for live source synchronization.
+# Run from landing-optimizer-infra/docker:
+# docker compose -f docker-compose.yml -f docker-compose.watch.yml up --build --watch
+services:
+  api:
+    build:
+      target: development
+    command:
+      - sh
+      - -c
+      - npx prisma migrate deploy && npm run clickhouse:migrate && npx prisma generate && npm run start:dev
+    environment:
+      NODE_ENV: development
+      TSC_WATCHFILE: DynamicPriorityPolling
+    develop:
+      watch:
+        - action: sync
+          path: ../../landing-optimizer-api/src
+          target: /app/src
+        - action: sync+restart
+          path: ../../landing-optimizer-api/tsconfig.json
+          target: /app/tsconfig.json
+        - action: sync+restart
+          path: ../../landing-optimizer-api/nest-cli.json
+          target: /app/nest-cli.json
+        - action: sync+restart
+          path: ../../landing-optimizer-api/prisma
+          target: /app/prisma
+        - action: sync+restart
+          path: ../../landing-optimizer-api/clickhouse
+          target: /app/clickhouse
+        - action: rebuild
+          path: ../../landing-optimizer-api/package.json
+        - action: rebuild
+          path: ../../landing-optimizer-api/package-lock.json
+        - action: rebuild
+          path: ../../landing-optimizer-api/Dockerfile
+
+  ai:
+    build:
+      target: development
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8000'
+      - --reload
+      - --reload-dir
+      - /app/app
+      - --no-access-log
+      - --log-config
+      - logging.json
+    develop:
+      watch:
+        - action: sync
+          path: ../../landing-optimizer-ai/app
+          target: /app/app
+        - action: sync+restart
+          path: ../../landing-optimizer-ai/logging.json
+          target: /app/logging.json
+        - action: rebuild
+          path: ../../landing-optimizer-ai/requirements.txt
+        - action: rebuild
+          path: ../../landing-optimizer-ai/Dockerfile
+
+  dashboard:
+    build:
+      target: development
+    command: ['npm', 'run', 'dev', '--', '--hostname', '0.0.0.0']
+    environment:
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: '1'
+      WATCHPACK_POLLING: 'true'
+    develop:
+      watch:
+        - action: sync
+          path: ../../landing-optimizer-dashboard/src
+          target: /app/src
+        - action: sync+restart
+          path: ../../landing-optimizer-dashboard/next.config.mjs
+          target: /app/next.config.mjs
+        - action: sync+restart
+          path: ../../landing-optimizer-dashboard/tailwind.config.ts
+          target: /app/tailwind.config.ts
+        - action: sync+restart
+          path: ../../landing-optimizer-dashboard/postcss.config.mjs
+          target: /app/postcss.config.mjs
+        - action: sync+restart
+          path: ../../landing-optimizer-dashboard/tsconfig.json
+          target: /app/tsconfig.json
+        - action: rebuild
+          path: ../../landing-optimizer-dashboard/package.json
+        - action: rebuild
+          path: ../../landing-optimizer-dashboard/package-lock.json
+        - action: rebuild
+          path: ../../landing-optimizer-dashboard/Dockerfile
