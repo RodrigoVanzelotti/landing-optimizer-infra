@@ -1,18 +1,24 @@
 # Implementation Status — Landing Optimizer
 
 > **Honest, living status.** Nothing is marked done unless it exists in code and
-> has been validated (typecheck / tests / build). Last updated: 2026-09-09.
+> has been validated (typecheck / tests / build). Last updated: 2026-09-10.
 
 Legend: ✅ done & validated · 🟡 partial · ⛔ blocked · ⬜ missing
 
-## Validation summary (this run)
+## Validation summary
+Latest full validation: **2026-09-10, product lead's machine** — Phase 1.5
+batch passed typecheck/tests/builds in snippet/api/dashboard plus the Docker
+E2E smoke (events + hover in ClickHouse, page map in Postgres, snapshot
+capture, heatmap rendering). The same run surfaced the ingestion-stop
+incident fixed in the 2026-09-10 batch below, which is **not yet validated**.
+
 | Repo | Typecheck | Tests | Build |
 | --- | --- | --- | --- |
-| snippet | ✅ `tsc --noEmit` clean | ✅ 15 pass (vitest) | ✅ `lo.js` 15.9 KB + `loader.js` 984 B |
-| api | ✅ `tsc --noEmit` clean | ✅ 6 pass (vitest) | ✅ Prisma client generated |
-| ai | ruff clean | ✅ 3 pass (pytest) | n/a |
-| dashboard | ✅ `tsc --noEmit` clean | ⬜ (no unit tests yet) | ✅ `next build` 18 routes |
-| infra | n/a | n/a | ✅ `docker compose config` valid |
+| snippet | ✅ | ✅ (incl. hover + capture suites) | ✅ `lo.js` + `loader.js` + `lo-capture.js` |
+| api | ✅ | ✅ (incl. event-scrub + snapshots suites) | ✅ Prisma client generated |
+| ai | ruff clean | ✅ (pytest) | n/a |
+| dashboard | ✅ | 🟡 (api-client tests only) | ✅ `next build` (19 routes incl. /heatmap) |
+| infra | n/a | n/a | ✅ compose stack runs; migrations applied |
 
 > 2026-08-05 update: added the Conversion Goals and Brand Guardrails
 > control-plane endpoints, `primaryGoalId` ownership validation, and
@@ -65,10 +71,87 @@ Legend: ✅ done & validated · 🟡 partial · ⛔ blocked · ⬜ missing
 > primary stack. YAML/Dockerfile editor validation completed; Compose was not
 > executed in this session.
 
+> **2026-09-10 update (2) — activation & product-led growth (Phase 1.7).**
+> Naive-user review of the whole dashboard, then implementation. Code written,
+> **not executed this session** — validate before promoting.
+>
+> - **API**: new `journey` module — `GET /v1/sites/:id/journey` computes the
+>   activation milestones (site → install → traffic → goal → conversion →
+>   snapshot → heatmap → AI → experiment → launch → verdict) live from
+>   ClickHouse + Postgres; thresholds centralized in `JOURNEY_TARGETS`
+>   (100 views / 200 interactions / 500 views / 60 exposures — the last
+>   matching the z-test's 30-per-arm floor). Never stored flags, so unlocks
+>   cannot contradict reality.
+> - **Dashboard**:
+>   - `SiteProvider` + sidebar site selector (persisted, shared by every
+>     page) replaces the hidden `sites[0]` pinning; `use-sites` is now a
+>     compat wrapper. Sites page refreshes the selector on create.
+>   - Sidebar grouped by intent: Measure / Optimize / Configure.
+>   - Overview is the activation hub: `JourneyPanel` (checklist, next-action
+>     highlight, progress bars, live "receiving events" pill that flips green
+>     on the first event), KPI cards with `InfoTip` definitions +
+>     what-to-expect copy (`kpi-copy.ts`), welcome card for zero-site tenants.
+>   - Progressive unlocks via `LockedFeature`: AI insights lock until 500
+>     views (progress bar; existing suggestions always remain visible),
+>     Results shows a significance countdown (exposures/60) and a first-run
+>     locked state, Heatmap gets a "warming up" progress banner under 200
+>     interactions, Analytics/Sections empty states now say what they'll show
+>     and how to get there. Funnel rows and significance carry explainers.
+>   - New primitives: `Progress`, `InfoTip`; new `journey.ts` (copy + hook).
+>   - Route count is now 20 (`/heatmap` page + `/api/client-log` handler).
+> - **Docs**: PRODUCT_REQUIREMENTS §5.8 (activation & progressive disclosure),
+>   ROADMAP Phase 1.7, API_CONTRACTS journey endpoint.
+
+> **2026-09-10 update — ingestion-stop root cause + launch observability
+> (Phase 1.6).** Field report: after running the full stack for a while,
+> events stopped reaching ClickHouse. Two real code bugs found and fixed, one
+> latent one hardened, plus the observability contract for launch. All code
+> below is written but **not executed in this session** — validate before
+> promoting.
+>
+> - **Root cause 1 — permanent rate limit** (`redis.module.ts`): `allow()` ran
+>   INCR then EXPIRE as two commands; if the EXPIRE of a new key ever failed,
+>   the counter became immortal and, after 600 total batches (~40 min of
+>   active browsing), the site was 429-rate-limited **forever** (the SDK drops
+>   429s silently). Replaced with one atomic Lua script that also re-sets a
+>   missing TTL on every call (self-healing).
+> - **Root cause 2 — silent ClickHouse data loss** (`clickhouse.service.ts`):
+>   `wait_for_async_insert: 0` acked inserts before parsing; any flush-time
+>   failure (typically: API rebuilt with the `selector`/`goal` columns while
+>   the DB missed migration 0002) discarded rows with no error anywhere. Now
+>   `wait_for_async_insert: 1` so failures throw and are logged, plus a
+>   boot-time schema guard that logs `clickhouse_schema_outdated` with the
+>   missing columns and the remedy. `insertEvents` no longer logs (its caller
+>   owns the single record — see the single-record rule).
+> - **Hardening — 24 h wire ceiling** (`tracker.ts`): a tab open longer than
+>   24 h sent `t`/`dw` values above the schema max, causing every subsequent
+>   batch to be 400-rejected. The SDK now clamps both.
+> - **Observability (per decisions with the product lead: request-ID-only
+>   tracing for launch, log-relay for browser errors, wait-and-surface CH
+>   inserts):**
+>   - Single-record rule formalized (DEPLOYMENT §8): one error log per
+>     incident. New `DependencyUnavailableException` carries dependency facts
+>     to `AllExceptionsFilter` (which merges them into its one `request_failed`
+>     record); `AiClient` throws it and no longer logs, removing the AI-path
+>     double log. `event_batch_dropped`/`page_map_dropped` now include the
+>     real reason, stack, and `request_id`.
+>   - Edge Worker: mints/propagates `X-Request-ID` to the API and echoes it;
+>     JSON logs (`service: landing-optimizer-edge`) for rejections and forward
+>     failures — a dropped fire-and-forget forward is no longer invisible.
+>   - Dashboard: new `/api/client-log` relay re-emits browser errors as the
+>     shared JSON envelope (`service: landing-optimizer-dashboard`); the API
+>     client reports 5xx (with the response's `X-Request-ID`) and network
+>     failures; window `error`/`unhandledrejection` listeners installed via
+>     `ClientErrorReporter` in the root layout. Both ends throttled; the relay
+>     sanitizes and allowlists fields; no loops (relay failures are never
+>     reported).
+>   - AI service: removed a duplicated import in `routers/internal.py`.
+>   - Cross-service trace now: edge → API → AI → dashboard all share one
+>     `request_id` per request (contract in DEPLOYMENT §8.2).
+
 > **2026-09-09 update — DOM-to-database completion + behavior heatmap (Phase
-> 1.5).** All code below is written but **not executed in this session** (no
-> typecheck, tests, build, or datastores were run); validate locally before
-> promoting anything to ✅.
+> 1.5).** Validated 2026-09-10 on the product lead's machine (typecheck,
+> tests, builds, Docker E2E incl. heatmap) — promoted to ✅ in ROADMAP.
 >
 > - **Snippet SDK**: new `hover` attention tracking (`src/hover.ts`) — 1 Hz
 >   pointer sampling resolved to the nearest page-map element, aggregated
@@ -204,8 +287,11 @@ API_CONTRACTS, SECURITY, DEPLOYMENT, ROADMAP, this status file.
   ingestion in dev); production Kafka/SQS consumer path is a stub.
 - **RLS**: `withTenant` GUC helper + policy design exist; the SQL `CREATE POLICY`
   statements are documented but not yet emitted as a Prisma migration.
-- **Observability**: production-safe application logs now exist in API + AI;
-  OTel/Prometheus/Sentry are designed/referenced but not yet instrumented.
+- **Observability**: production-safe JSON logs now exist in API + AI + edge +
+  dashboard relay, with cross-service `X-Request-ID` correlation and a
+  documented single-record error rule (DEPLOYMENT §8) — pending validation of
+  the 2026-09-10 batch. OTel/Prometheus/Sentry (metrics/traces/alerting) are
+  designed but not yet instrumented.
 
 ## Missing ⬜
 - Prisma migration files (`prisma migrate` needs a live Postgres; schema is
@@ -246,12 +332,16 @@ API_CONTRACTS, SECURITY, DEPLOYMENT, ROADMAP, this status file.
 - Anti-flicker is bounded by a timeout; heavy SPAs may still show brief flicker.
 
 ## Next recommended tasks
-1. Validate the 2026-09-09 batch: `tsc --noEmit` + `npm test` + build in
-   snippet/api/dashboard, `prisma generate`, then `make up`, `prisma migrate
-   deploy` + `clickhouse:migrate`, seed, and a full E2E smoke (install snippet →
-   events + hover in ClickHouse → page map in Postgres → `?lo_capture=1`
-   snapshot → heatmap page renders all four layers → approve/start a copy
-   experiment → verify overlay + results → rollback).
+1. Validate the 2026-09-10 batch: typecheck + tests + builds in
+   snippet/api/dashboard, rebuild the compose stack, then (a) confirm the
+   ingestion-stop fix — clear any stale limiter keys once
+   (`redis-cli --scan --pattern 'rl:*' | xargs redis-cli del`), browse the demo
+   for 45+ min or artificially fill a window, and verify events keep flowing
+   and `TTL rl:evt:*` is never `-1`; (b) confirm a forced ClickHouse failure
+   (e.g., stop the container) produces exactly one `event_batch_dropped` log
+   with reason + request_id; (c) confirm a browser 5xx shows up in the
+   dashboard container logs via `/api/client-log` with the same request_id as
+   the API's `request_failed` line.
 2. Emit RLS `CREATE POLICY` statements as a Prisma migration + tenant-isolation
    integration test.
 3. Split ingestion into edge Worker + queue + standalone consumer.

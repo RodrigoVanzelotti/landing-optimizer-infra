@@ -109,6 +109,26 @@ Statuses: `draft`, `ai_suggested`, `pending_review`, `approved`, `scheduled`,
 Every change records: original content, proposed variant, screenshot / DOM
 selector context, reason, risk score, approval user, timestamp, rollback data.
 
+### 5.8 Activation & progressive disclosure (product-led growth)
+The product must deliver visible value within minutes of signup and make every
+future capability something the user anticipates, not discovers by accident:
+- **Time-to-value**: after install, the dashboard confirms tracking with a
+  live "receiving events" signal — the operator never wonders if it worked.
+- **Guided path**: a getting-started journey (create site → install → traffic
+  → goal → snapshot → heatmap → AI insights → experiment → verdict) with one
+  obvious next action at all times.
+- **Honest progressive unlocks**: data-hungry features (heatmap, AI insights,
+  significance verdicts) present as locked-with-progress until they have
+  enough data to be trustworthy — with a visible progress bar toward the
+  threshold, what the feature will show, and the action that advances it.
+  Thresholds exist because the feature genuinely needs the data (e.g. the
+  results target equals the significance test's minimum sample), never as an
+  artificial paywall.
+- **Self-explaining KPIs**: every metric carries a plain-language definition
+  and an expectation ("what's a normal number") one hover away.
+- **Server-computed state**: journey/unlock state is derived from stored data
+  via `GET /v1/sites/:id/journey` — it can never contradict reality.
+
 ## 6. Success metrics
 - Snippet payload < 15 KB gzipped; TTI impact < 10 ms.
 - Ingestion p99 < 50 ms at edge.

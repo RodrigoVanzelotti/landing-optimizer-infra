@@ -75,6 +75,11 @@ ingest key + rate limit; no JWT).
 | --- | --- |
 | POST/GET/PATCH/DELETE | `/v1/sites/:id/goals[/:goalId]` |
 
+### Activation journey
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/v1/sites/:id/journey` | Ordered activation milestones with live progress, computed from stored data (never stored flags). Returns `{ siteId, firstEventAt, lastEventAt, completed, total, milestones: [{ id, done, current?, target? }] }`. Drives the dashboard's getting-started checklist and progressive feature unlocks. Thresholds live in `JOURNEY_TARGETS` (journey.service.ts). |
+
 ### Page snapshots (behavior heatmap)
 | Method | Path | Notes |
 | --- | --- | --- |
