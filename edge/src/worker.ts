@@ -19,6 +19,37 @@ const MAX_BODY_BYTES = 32 * 1024;
 // Operator-triggered page snapshots carry a base64 screenshot (≤3 MB decoded).
 const MAX_SNAPSHOT_BODY_BYTES = 5 * 1024 * 1024;
 
+const SAFE_REQUEST_ID = /^[A-Za-z0-9._-]{1,64}$/;
+
+/** Accept a safe upstream id or mint one; forwarded so the API/AI logs share it. */
+function requestIdOf(request: Request): string {
+  const value = request.headers.get('x-request-id');
+  return value && SAFE_REQUEST_ID.test(value) ? value : crypto.randomUUID();
+}
+
+/**
+ * One JSON object per line, same envelope as the API/AI services so all
+ * services share the log sink and query fields (visible via wrangler tail /
+ * Logpush in production).
+ */
+function logEvent(
+  level: 'info' | 'warn' | 'error',
+  event: string,
+  fields: Record<string, unknown>,
+): void {
+  const line = JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level,
+    service: 'landing-optimizer-edge',
+    logger: 'worker',
+    event,
+    ...fields,
+  });
+  if (level === 'error') console.error(line);
+  else if (level === 'warn') console.warn(line);
+  else console.log(line);
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -40,8 +71,10 @@ export default {
 };
 
 async function handleEvents(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const requestId = requestIdOf(request);
   const cl = Number(request.headers.get('content-length') ?? '0');
   if (cl > MAX_BODY_BYTES) {
+    logEvent('warn', 'ingest_rejected', { reason: 'body_too_large', bytes: cl, request_id: requestId });
     return json({ error: { code: 'validation_error', message: 'body too large' } }, 400, request);
   }
 
@@ -49,9 +82,11 @@ async function handleEvents(request: Request, env: Env, ctx: ExecutionContext): 
   try {
     body = await request.json();
   } catch {
+    logEvent('warn', 'ingest_rejected', { reason: 'invalid_json', request_id: requestId });
     return json({ error: { code: 'validation_error', message: 'invalid json' } }, 400, request);
   }
   if (!isEnvelopeLike(body)) {
+    logEvent('warn', 'ingest_rejected', { reason: 'invalid_envelope', request_id: requestId });
     return json({ error: { code: 'validation_error', message: 'invalid envelope' } }, 400, request);
   }
 
@@ -60,19 +95,37 @@ async function handleEvents(request: Request, env: Env, ctx: ExecutionContext): 
   const allowed = (env.ALLOWED_COUNTRIES ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const country = cf?.country && allowed.includes(cf.country) ? cf.country : '';
 
-  // Fire-and-forget forward to the control plane; respond fast (202).
+  // Fire-and-forget forward to the control plane; respond fast (202). A
+  // failed forward is the only record of the loss, so it must be logged.
   const forward = fetch(`${env.API_ORIGIN}/v1/events`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'X-Forwarded-Origin': request.headers.get('origin') ?? '',
       'X-Geo-Country': country,
+      'X-Request-ID': requestId,
     },
     body: JSON.stringify(body),
-  }).catch(() => undefined);
+  }).then(
+    (res) => {
+      if (!res.ok) {
+        logEvent('warn', 'forward_rejected', {
+          upstream_status: res.status,
+          request_id: requestId,
+        });
+      }
+    },
+    (err: unknown) => {
+      logEvent('error', 'forward_failed', {
+        reason: err instanceof Error ? `${err.name}:${err.message}`.slice(0, 300) : 'unknown',
+        request_id: requestId,
+      });
+    },
+  );
   ctx.waitUntil(forward);
 
-  return new Response(null, { status: 202, headers: corsHeaders(request) });
+  const headers = { ...corsHeaders(request), 'X-Request-ID': requestId };
+  return new Response(null, { status: 202, headers });
 }
 
 /**
@@ -81,8 +134,10 @@ async function handleEvents(request: Request, env: Env, ctx: ExecutionContext): 
  * status is returned to the browser. The API re-validates everything.
  */
 async function handleSnapshot(request: Request, env: Env): Promise<Response> {
+  const requestId = requestIdOf(request);
   const cl = Number(request.headers.get('content-length') ?? '0');
   if (cl > MAX_SNAPSHOT_BODY_BYTES) {
+    logEvent('warn', 'snapshot_rejected', { reason: 'body_too_large', bytes: cl, request_id: requestId });
     return json({ error: { code: 'validation_error', message: 'body too large' } }, 400, request);
   }
   try {
@@ -91,13 +146,20 @@ async function handleSnapshot(request: Request, env: Env): Promise<Response> {
       headers: {
         'Content-Type': 'application/json',
         'X-Forwarded-Origin': request.headers.get('origin') ?? '',
+        'X-Request-ID': requestId,
       },
       body: request.body,
     });
     const res = new Response(upstream.body, upstream);
+    res.headers.set('X-Request-ID', requestId);
     applyCors(res, request);
     return res;
-  } catch {
+  } catch (err) {
+    logEvent('error', 'forward_failed', {
+      operation: 'snapshot',
+      reason: err instanceof Error ? `${err.name}:${err.message}`.slice(0, 300) : 'unknown',
+      request_id: requestId,
+    });
     return json({ error: { code: 'internal_error', message: 'upstream failed' } }, 502, request);
   }
 }
