@@ -69,3 +69,14 @@ ignored `release.auto.tfvars.json` can become stale after automatic releases;
 refresh its image values from the live Terraform state before a full manual plan.
 Never approve a plan that deletes/replaces persistent resources or rolls another
 component's image back. The automatic script rejects all deletions/replacements.
+
+Administrator bootstrap must enable IAM Credentials (`iamcredentials.googleapis.com`),
+STS (`sts.googleapis.com`) and Cloud Resource Manager (`cloudresourcemanager.googleapis.com`)
+in the deployment project, in addition to the V1 runtime APIs. This was completed
+for `landing-optimizer-landing-page`. Secret values remain administrator-managed.
+
+Verified 2026-11-10: all three application `CI` runs succeeded, their Cloud Run
+last modifier is the deployment service account, and the final Terraform plan is
+clean. AI run `42879925133`, API run `42879936463` (migration execution
+`landing-optimizer-migrate-v1-b5x7p`), dashboard run `42880236062`. Live AI auth/scoring
+and dashboard session/data checks passed. AI remains on the deterministic provider.

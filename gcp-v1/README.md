@@ -97,8 +97,8 @@ in ignored `smoke-result.json`, with no operator password or JWT.
   `DELETE FROM events WHERE event_time < now() - interval '180 days';` with an
   authorized SQL connection. Schedule maintenance before expanding traffic. Full
   disk can stop ingestion; storage failures return HTTP 503.
-- No AI service, custom domain, CDN or new GitHub release automation is
-  deployed. AI routes still require a separately configured AI service.
+- AI is deployed with its deterministic provider and a protected internal bearer token.
+  No custom domain or CDN is deployed. AI, API and dashboard releases use GitHub Actions.
 - Existing API dependencies have npm security advisories, including critical
   reports. This deployment does not upgrade the framework; resolve them before
   broader production rollout. Cloud Build runs tests but is not a security audit.
@@ -138,3 +138,10 @@ Secret Manager `lo-v1-operator-password` version 1. The dedicated dashboard runt
 has no secret access or Cloud SQL connection. Its limits are 1 vCPU, 512 MiB,
 0–2 instances and concurrency 20. Complete inventory and deployment records:
 [GOOGLE_CLOUD_DEPLOYMENTS.md](../../GOOGLE_CLOUD_DEPLOYMENTS.md).
+
+CI/CD is now active for all three application repositories. Successful runs:
+[AI](https://github.com/RodrigoVanzelotti/landing-optimizer-ai/actions/runs/42879925133),
+[API](https://github.com/RodrigoVanzelotti/landing-optimizer-api/actions/runs/42879936463),
+[dashboard](https://github.com/RodrigoVanzelotti/landing-optimizer-dashboard/actions/runs/42880236062).
+Their main commits deployed through Terraform, and the API migration job completed.
+See [CI_CD.md](CI_CD.md) for the trust restrictions, cross-repository locking and recovery.
