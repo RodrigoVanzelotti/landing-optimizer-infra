@@ -1,0 +1,10 @@
+.terraform/
+!.terraform.lock.hcl
+tools/
+.build/
+*.tfstate*
+*.tfplan
+release.auto.tfvars.json
+install.html
+smoke-result.json
+__pycache__/

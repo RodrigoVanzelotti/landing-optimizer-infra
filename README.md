@@ -3,6 +3,10 @@
 Cross-cutting home for design docs, local dev stack, edge worker, IaC, and CI.
 
 ## Design docs
+
+For the simplified Google Cloud V1 deployment (API + snippet on Cloud Run,
+PostgreSQL storage), use [gcp-v1/README.md](gcp-v1/README.md).
+
 See [docs/](docs/):
 - [PRODUCT_REQUIREMENTS.md](docs/PRODUCT_REQUIREMENTS.md)
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md)

@@ -1,0 +1,59 @@
+name: Deploy Google Cloud V1
+on:
+  workflow_call:
+    inputs:
+      component:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: production-${{ inputs.component }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: RodrigoVanzelotti/landing-optimizer-infra
+          ref: main
+          path: landing-optimizer-infra
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: landing-optimizer-${{ inputs.component }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: inputs.component == 'api'
+        with:
+          repository: RodrigoVanzelotti/landing-optimizer-snippet
+          ref: main
+          path: landing-optimizer-snippet
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.16.6'
+          terraform_wrapper: false
+      - run: python -m unittest discover -s landing-optimizer-infra/gcp-v1/tests -v
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/505424813528/locations/global/workloadIdentityPools/landing-optimizer-github/providers/github
+          service_account: landing-optimizer-deployer@landing-optimizer-landing-page.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@v3
+      - run: gcloud auth configure-docker southamerica-east1-docker.pkg.dev --quiet
+      - run: python landing-optimizer-infra/gcp-v1/ci_release.py
+        env:
+          COMPONENT: ${{ inputs.component }}
+          GH_TOKEN: ${{ github.token }}
