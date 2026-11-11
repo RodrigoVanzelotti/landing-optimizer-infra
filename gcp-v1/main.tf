@@ -149,6 +149,7 @@ module "api" {
     startup_probe       = { failure_threshold = 12, period_seconds = 5, timeout_seconds = 2, http_get = { path = "/health", port = 8080 } }
     env = {
       NODE_ENV          = "production"
+      DASHBOARD_ORIGIN  = "https://landing-optimizer-dashboard-505424813528.southamerica-east1.run.app"
       ANALYTICS_BACKEND = "postgres"
       CDN_SDK_BASE_URL  = "${local.base_url}/v1/sdk"
       INGEST_URL        = "${local.base_url}/v1/events"

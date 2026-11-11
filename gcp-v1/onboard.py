@@ -41,7 +41,7 @@ def main():
     except urllib.error.HTTPError as error:
         if error.code != 401:
             raise
-        _, auth = request("/v1/auth/register", {**credentials, "tenantName": "Landing Optimizer", "name": "Rodrigo Vanzelotti"})
+        raise RuntimeError("Operator account unavailable. Provision the tenant with npm run tenant:create and accept its administrator invitation before onboarding.") from error
     token = auth["accessToken"]
     _, sites = request("/v1/sites", token=token)
     site = next((s for s in sites if s["primaryDomain"] == domain), None)

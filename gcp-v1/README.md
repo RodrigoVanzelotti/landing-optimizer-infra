@@ -66,8 +66,30 @@ This ignored workaround is local only. Normal machines use standard `terraform i
 
 ## Generate and install a snippet
 
+Create tenants through the dashboard **Clientes** page, exclusive to
+`rodrigovanzelotti@gmail.com`. The API independently enforces this identity.
+The same page lists tenant users, issues password-reset links and archives or
+reactivates clients. Apply both team-invitations and platform-management migrations
+before deploying. Archiving preserves data and blocks access.
+
+The operator CLI in `landing-optimizer-api` remains available as a fallback:
+`npm run tenant:create -- --tenant "Acme" --name "Ana" --email "ana@acme.com" --dashboard-url "https://landing-optimizer-dashboard-505424813528.southamerica-east1.run.app"`.
+Set `DATABASE_URL` in the operator shell and apply the team-invitations migration
+first. Send the resulting complete invitation URL privately to the first admin.
+The exclusive platform API and the CLI share the provisioning transaction.
+Existing owners migrate to admins.
+
+Tenant admins use **Team members** to generate same-domain invitations, select
+roles, revoke invitations and change roles. There are at most 10 users and 3 admins
+per tenant; pending invitations reserve slots for 7 days. Editors can consult admin
+settings and approve experiments; viewers cannot access admin settings or mutate
+application data. Invitation URLs include a secret fragment after `#`; include it
+when sending the link. The server stores its hash, never the secret itself.
+No invitation emails are sent automatically. The old registration allowlist is
+obsolete; remove any local `registration.auto.tfvars` file if it was created.
+
 The default hostname is the existing landing page's generated Google Cloud domain.
-`onboard.py` logs in as the operator (registers on first run), reuses/creates the site
+`onboard.py` logs in as the already provisioned operator, reuses/creates the site
 for the requested hostname and saves `install.html`. Paste its contents before
 `</head>` on the target page. Nothing captures real visitor traffic until installed.
 The site allows the HTTPS origin for that hostname. Add other origins with the
