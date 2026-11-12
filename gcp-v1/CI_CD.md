@@ -56,6 +56,21 @@ LLM requires explicitly configuring its provider and a separately managed key.
 
 ## Operations
 
+Recovery verified on 2026-11-12: API and dashboard builds passed, but their previous
+deployment jobs failed with `cloudsql.instances.update` denied. The live database
+had `cloudsql.iam_authentication=on`, which was absent from `main.tf`; full plans
+attempted to remove it. Keep that existing flag declared in Terraform. Application
+releases must not need additional Cloud SQL administration permissions.
+
+The local Terraform correction was used for the coordinated Cloud Build recovery,
+which applied the team/platform migrations before releasing API revision
+`landing-optimizer-api-00004-j9r` and dashboard revision
+`landing-optimizer-dashboard-00005-klj`. Authenticated team/platform requests and
+browser login, refresh, Team Members and Clientes passed; the final full Terraform
+plan had no changes. This recovery made no commits or pushes: the local `main.tf`
+correction still needs to reach the infrastructure repository's `main` branch
+through the owner's normal review process before future automatic releases.
+
 Check the `CI` run in the application repository. Its deployment job records the
 application commit, exact image digest and live endpoint in the Actions summary.
 Infrastructure/provider versions and checksums are pinned in Terraform.

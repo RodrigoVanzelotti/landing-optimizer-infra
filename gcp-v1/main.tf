@@ -75,6 +75,10 @@ resource "google_sql_database_instance" "postgres" {
     disk_autoresize             = true
     disk_autoresize_limit       = 20
     deletion_protection_enabled = true
+    database_flags {
+      name  = "cloudsql.iam_authentication"
+      value = "on"
+    }
     backup_configuration {
       enabled                        = true
       start_time                     = "04:00"
