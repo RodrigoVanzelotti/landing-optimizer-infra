@@ -71,7 +71,7 @@ services:
       clickhouse:
         condition: service_healthy
     environment:
-      DATABASE_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DB}?schema=public"
+      DATABASE_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB}?schema=public"
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_DB: ${CLICKHOUSE_DB}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
@@ -94,7 +94,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: '3001'
-      DATABASE_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DB}?schema=public"
+      DATABASE_URL: "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-postgres}:5432/${POSTGRES_DB}?schema=public"
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_DB: ${CLICKHOUSE_DB:?CLICKHOUSE_DB environment variable must be set}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
@@ -122,10 +122,10 @@ services:
   dashboard:
     build:
       context: ../../landing-optimizer-dashboard
+      args:
+        API_URL: http://api:3001/v1
     depends_on:
       - api
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001/v1
     ports:
       - '3000:3000'
 
