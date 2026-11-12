@@ -54,8 +54,8 @@ and ships the first visual analytics feature.
    Worker forwards straight to the API).
 4. Dashboard component tests + API integration tests against live datastores.
 5. A shared site selector in the dashboard (pages currently pin `sites[0]`).
-6. Server/edge attribution for `url` and `form_submit` conversion goals;
-   filter experiment results by the experiment's primary goal.
+6. Completed in the API ingestion path: URL/form goal evaluation and experiment
+   attribution filtered by primary goal, deduplicated per exposed session/variant.
 
 ## Phase 2 — Post-MVP
 - AI-generated variants (headlines, CTAs, friction analysis) — suggestions

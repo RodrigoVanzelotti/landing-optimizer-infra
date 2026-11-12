@@ -231,12 +231,13 @@ API_CONTRACTS, SECURITY, DEPLOYMENT, ROADMAP, this status file.
 - Significance is a frequentist z-test MVP (ROADMAP tracks Bayesian/sequential).
 - Some list endpoints lack cursor pagination (noted in API_CONTRACTS).
 - Dashboard fetching is client-side only; could adopt RSC/server actions.
-- Conversion goals are defined for all three kinds, but only `event`-kind goals
-  are auto-attributed today (the SDK `conversion(name)` emits the event). Server
-  or edge-side attribution for `url`/`form_submit` goals is a follow-up; the
-  `matcher` shapes are already validated and stored for it. Experiment results
-  also count all conversions rather than filtering by the experiment's primary
-  goal — to be refined alongside the attribution engine.
+- Conversion goals: API ingestion now emits conversions for matching URL views
+  and native form submissions; explicit event goals use `conversion(name)`.
+  Experiment results use raw events scoped by tenant/site, join conversions to
+  prior exposures by the daily-pseudonymized session, filter the primary goal,
+  and count each session once per variant. Without a primary goal all conversion
+  goals count. The dashboard permits selecting the primary goal before review.
+  URL/form rules affect new events, without historical backfill.
 
 ## Known risks
 - Ed25519 Web Crypto verify is unavailable on older browsers → SDK safely skips
