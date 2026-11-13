@@ -132,18 +132,21 @@ applying any change. See [API_CONTRACTS.md](./API_CONTRACTS.md).
 ## 8. Page snapshot capture (operator-only, `POST /v1/snapshots`)
 
 Powers the dashboard **behavior heatmap**. Never runs for real visitors: the
-core SDK lazy-loads a separate `lo-capture.js` bundle only when the operator
+core SDK lazy-loads a separate `lo-capture.js` bundle only when someone explicitly
 opens the page with `?lo_capture=1`. The module rasterizes the page client-side
 (SVG foreignObject, no dependency), strips form values / password inputs /
 `[data-lo-ignore]` elements, records the document-space bounding box of every
-page-map node, and uploads both. Storing geometry with the image means heat
+page-map node, and downloads both as a JSON file. A logged-in editor uploads
+that file from the dashboard. Storing geometry with the image means heat
 zones stay aligned with the screenshot even if the live page changes later.
+
+The query parameter opts into local capture; it does not authenticate an operator.
+Authentication and authorization happen when an editor uploads the file.
 
 ```jsonc
 {
   "v": 1,
   "siteId": "uuid",
-  "ik": "ingest_key",              // same public write key as events
   "path": "/pricing",              // pathname only
   "width": 1280,                   // rasterized width (CSS px, 200..4000)
   "height": 4200,                  // full document height (CSS px, 200..40000)
@@ -155,7 +158,9 @@ zones stay aligned with the screenshot even if the live page changes later.
 }
 ```
 
-Validation: same origin-allowlist + ingest-key trust model as `/v1/events`,
-rate limited to 10 uploads/site/hour, magic-byte content-type check, retention
+Validation: authenticated editor JWT and tenant ownership of the site,
+rate limited to 10 uploads/site/hour, magic-byte content-type and decoded
+dimension checks (at most 24 million pixels), with retention
 of the newest 3 snapshots per (site, path) and 20 per site. Responses: `201`
-stored, `400` invalid, `403` bad key/origin, `429` rate limited.
+stored with `{ "saved": true }`, `400` invalid, `401` no session, `403` role/site
+denied, `429` rate limited. The public ingest key does not authorize uploads.

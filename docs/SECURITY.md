@@ -1,8 +1,54 @@
 # Security Model — Landing Optimizer
 
-> Status: Living document. Last updated: 2026-07-02.
-> Security is a first-class requirement. This document maps each control to its
-> implementation location and to the OWASP Top 10.
+> Implementation status reviewed: 2026-11-13. The design targets below are not
+> evidence that each control is implemented or deployed. See
+> [the security review](../../artifacts/security-review/REPORT.md) for findings,
+> verification limits, rollout requirements and unresolved architectural decisions.
+
+## Current implementation
+
+- The API uses Argon2id passwords and invitation-based registration, not Auth.js
+  or Clerk. Access tokens stay in dashboard memory; refresh tokens use HttpOnly,
+  Secure, SameSite=Strict cookies. Refresh has a fixed deadline but is not backed
+  by a rotating, replay-detecting session store. Logout advances the account session
+  version and writes an audit record in a transaction, revoking all account sessions.
+  Membership removal and tenant archival also advance account versions; restoration
+  requires a fresh login and does not resurrect previously issued tokens.
+- Global JWT and role guards protect control-plane endpoints. Roles, membership,
+  account session version and tenant archive state are read from the database.
+  Services enforce object ownership. There is no implemented TenantGuard,
+  automatic Prisma tenant middleware, or RLS policy in the checked-in migrations.
+- Shared Redis limits use atomic increment/expiry, with PostgreSQL fallback that
+  does not silently allow traffic on dependency failure. Auth and control-plane
+  limits now exist in code; deployed quotas and proxy behavior still need validation.
+- Site signing keys use AES-256-GCM with an environment-supplied key; this is not
+  direct KMS signing. Production validation rejects the development encryption
+  fallback and weak/default service credentials. Secret Manager supplies the key
+  in the GCP configuration. Rotation and re-encryption need an operator procedure.
+- Events use a public ingest key and an origin allowlist. Empty allowlists deny
+  ingestion. Origins are forgeable by non-browser clients: these controls do not
+  establish operator identity. Snapshots require an authenticated dashboard editor
+  and a tenant ownership check; the capture bundle downloads a file for upload.
+- Public config reads no longer increment database versions. Publication is
+  serialized and cached configs are checked against the database version.
+  Live experiment changes invalidate that version in their transaction.
+- Browser output uses React escaping; no dashboard raw HTML injection was found.
+  The dashboard CSP restricts frames, plugins, base URLs and form actions. It does
+  not yet restrict script execution with nonces/hashes.
+- Collection attempts to minimize visitor PII. Pattern scrubbing cannot guarantee
+  that paths, custom labels or screenshots contain none. Account emails and names
+  are deliberately stored. Daily pseudonym salts now depend on a server secret.
+- Audit writes accompany many mutations in their database transaction. Logs are
+  not demonstrated to be immutable; OTel, Sentry, anomaly alerts, MFA, signed CI
+  artifacts and comprehensive secret scanning are not established by this review.
+- Framework and validation dependencies were upgraded in the security review.
+  API and dashboard CI now reject high/critical dependency advisories rather than
+  ignoring audit failures. See the review's dated audit artifacts for exact results.
+
+## Historical design targets
+
+The remaining sections describe the intended defense-in-depth model. Verify each
+claim against code and deployment state before relying on it.
 
 ## 1. Threat model (STRIDE, abridged)
 

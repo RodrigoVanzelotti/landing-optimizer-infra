@@ -33,13 +33,6 @@ Ingest a batch of events. Origin + `ik` (ingest key) validated.
 - `page_map` events are split off and upserted into Postgres `page_map`
   (one row per site + path); all other events land in ClickHouse.
 
-### `POST /v1/snapshots`
-Operator-triggered page snapshot upload from the `lo-capture.js` bundle
-(EVENT_SCHEMA §8). Same trust model as `/v1/events` (origin allowlist +
-ingest key + rate limit; no JWT).
-- Body: snapshot envelope (screenshot base64 ≤ 3 MB + element geometry).
-- 201 → stored. 400 → invalid. 403 → bad key/origin. 429 → rate limited.
-
 ---
 
 ## B. Control-plane API (dashboard/operator)
@@ -47,17 +40,21 @@ ingest key + rate limit; no JWT).
 ### Auth
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| POST | `/v1/auth/login` | `{ email, password }` or provider callback | `{ accessToken }` + refresh cookie |
+| POST | `/v1/auth/register` | `{ token, name, email, password }`; invitation required | `{ accessToken, user }` + refresh cookie |
+| POST | `/v1/auth/login` | `{ email, password, rememberMe? }` | `{ accessToken, user }` + refresh cookie |
 | POST | `/v1/auth/refresh` | (cookie) | `{ accessToken }` |
-| POST | `/v1/auth/logout` | — | 204 |
-| GET | `/v1/auth/me` | — | `{ user, memberships }` |
+| POST | `/v1/auth/logout` | — | 204; revokes all account sessions |
+| POST | `/v1/auth/reset-password` | `{ token, password }` | 204; revokes account sessions |
+| GET | `/v1/auth/me` | — | `{ id, name, email, tenantId, role, platformOwner }` |
 
-### Tenants
+### Platform tenant administration (platform owner only)
 | Method | Path | Notes |
 | --- | --- | --- |
-| POST | `/v1/tenants` | create tenant (+owner membership) |
-| GET | `/v1/tenants/:id` | must be member |
-| PATCH | `/v1/tenants/:id` | owner/admin |
+| POST/GET | `/v1/platform/tenants` | provision with first-administrator invitation / list |
+| GET | `/v1/platform/tenants/:id` | details, members and pending invitations |
+| POST | `/v1/platform/tenants/:id/archive` | exact name confirmation; revokes member sessions |
+| POST | `/v1/platform/tenants/:id/restore` | restores access; requires a fresh login |
+| POST | `/v1/platform/tenants/:id/users/:userId/password-reset` | issue a one-use reset link |
 
 ### Sites
 | Method | Path | Notes |
@@ -68,7 +65,7 @@ ingest key + rate limit; no JWT).
 | PATCH | `/v1/sites/:id` | update settings/sampling/status |
 | GET | `/v1/sites/:id/snippet` | returns install snippet + GTM variant |
 | GET | `/v1/sites/:id/origins` / POST / DELETE | manage origin allowlist |
-| POST | `/v1/sites/:id/config/publish` | recompile + sign + push config to Redis/CDN |
+| POST | `/v1/sites/:id/config/publish` | recompile + sign + cache; no CDN purge is performed |
 
 ### Conversion goals
 | Method | Path |
@@ -76,11 +73,16 @@ ingest key + rate limit; no JWT).
 | POST/GET/PATCH/DELETE | `/v1/sites/:id/goals[/:goalId]` |
 
 ### Page snapshots (behavior heatmap)
+
+`lo-capture.js` downloads a file. A logged-in editor uploads it here; site ownership
+is checked server-side. The public ingest key cannot authorize this operation.
+
 | Method | Path | Notes |
 | --- | --- | --- |
+| POST | `/v1/snapshots` | editor; base64 image ≤ 3 MB, decoded dimensions ≤ 24 million pixels; 201 `{ "saved": true }` |
 | GET | `/v1/sites/:id/snapshots` | list snapshot metadata (newest first) |
 | GET | `/v1/sites/:id/snapshots/:snapshotId` | metadata + element geometry (`nodes`) |
-| GET | `/v1/sites/:id/snapshots/:snapshotId/image` | image bytes (`Content-Type` from upload) |
+| GET | `/v1/sites/:id/snapshots/:snapshotId/image` | image bytes; `Cache-Control: no-store` |
 | DELETE | `/v1/sites/:id/snapshots/:snapshotId` | editor; audited; 204 |
 
 ### Experiments

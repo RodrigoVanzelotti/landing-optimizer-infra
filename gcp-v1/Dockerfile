@@ -5,7 +5,7 @@ COPY snippet/ ./
 RUN npm ci && npm run typecheck && npm test -- --pool=forks --poolOptions.forks.singleFork && npm run build
 WORKDIR /app
 COPY api/ ./
-RUN npm ci && npx prisma generate && npm run typecheck && npm test -- --pool=forks --poolOptions.forks.singleFork && npm run build && npm prune --omit=dev
+RUN npm ci && npx prisma generate && npm run typecheck && npm test -- --maxWorkers=1 && npm run build && npm prune --omit=dev
 
 FROM node:22-slim
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
