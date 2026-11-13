@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate docker-compose
-        run: docker compose -f docker/docker-compose.yml config -q
+        run: docker compose --env-file docker/.env.example -f docker/docker-compose.yml config -q
       - name: Terraform fmt check
         uses: hashicorp/setup-terraform@v3
         with:
