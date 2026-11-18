@@ -1,5 +1,10 @@
 # Main-branch deployment
 
+> Historical record. Canonical configuration and release execution moved to
+> `personal-cloud-infrastructure/solutions/landing-optimizer/terraform/v1`.
+> The local reusable workflow delegates to the central workflow; publication is
+> still required. Read the central `docs/reconciliation.md` before any release.
+
 The AI, API and dashboard repositories run their existing checks on pull requests
 and pushes. A successful push to `main`, including a merged PR, calls
 `RodrigoVanzelotti/landing-optimizer-infra/.github/workflows/deploy.yml@main`.

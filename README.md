@@ -1,6 +1,17 @@
-# Landing Optimizer — Infrastructure & Docs
+# Landing Optimizer - Local infrastructure and documentation
 
-Cross-cutting home for design docs, local dev stack, edge worker, IaC, and CI.
+Cloud infrastructure, secrets, IAM and releases are owned by
+[`personal-cloud-infrastructure/solutions/landing-optimizer`](../personal-cloud-infrastructure/solutions/landing-optimizer/README.md).
+Application repositories call its central release workflow directly. Legacy
+`gcp-v1` Python commands delegate there, and direct plans in the old GCP root
+are blocked. Do not maintain or apply a second Cloud stack here.
+
+This repository remains the home for local Docker development, product/architecture
+documentation and historical Kubernetes/AWS/edge examples. Those examples do not
+establish a deployed Cloud environment or authorize an independent Cloud deploy.
+
+Local development, design documentation and historical infrastructure examples.
+Cloud deployment ownership is described above.
 
 ## Design docs
 

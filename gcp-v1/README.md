@@ -1,5 +1,11 @@
 # Landing Optimizer V1 deployment
 
+> Infrastructure and release execution moved to
+> `personal-cloud-infrastructure/solutions/landing-optimizer/terraform/v1`.
+> Python entry points here delegate to that directory; direct plans in this
+> legacy root are blocked. The notes below are historical. Read the central
+> `docs/reconciliation.md` for current ownership and workflow publication status.
+
 AI, API and dashboard releases are automated on successful merges to `main` through
 GitHub Actions and Terraform. See [CI/CD operation and recovery](CI_CD.md).
 The local deployment scripts below are retained for administrator bootstrap/recovery.

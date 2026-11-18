@@ -4,7 +4,7 @@ import urllib.error
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "personal-cloud-infrastructure/solutions/landing-optimizer/terraform/v1"))
 import ci_release
 
 
